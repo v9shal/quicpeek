@@ -1,0 +1,36 @@
+monihel/
+├── api/                          # Express API server
+│   ├── src/
+│   │   ├── index.ts
+│   │   ├── routes/
+│   │   │   ├── auth.ts
+│   │   │   ├── endpoints.ts
+│   │   │   ├── metrics.ts
+│   │   │   └── alerts.ts
+│   │   ├── middleware/
+│   │   │   ├── auth.ts
+│   │   │   └── errorHandler.ts
+│   │   ├── websocket/
+│   │   │   └── gateway.ts
+│   │   └── services/
+│   │       └── endpointService.ts
+│   └── Dockerfile
+│
+├── workers/
+│   ├── ping/
+│   │   ├── index.ts              # Ping worker
+│   │   ├── pingService.ts        # HTTP request with auth injection
+│   │   └── alertingService.ts    # Consecutive fail logic
+│   ├── digest/
+│   │   ├── index.ts              # Digest worker
+│   │   └── digestService.ts      # Batch email logic
+│   └── alert/
+│       ├── index.ts              # Alert worker
+│       └── emailService.ts       # Recovery email sending
+│
+├── prisma/
+│   └── schema.prisma
+│
+├── docker-compose.yml
+├── docker-compose.prod.yml
+└── README.md

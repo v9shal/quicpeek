@@ -1,0 +1,1 @@
+// Digest worker entry point

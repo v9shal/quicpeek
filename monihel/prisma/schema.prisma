@@ -1,0 +1,130 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+}
+
+model User {
+    id        String   @id @default(cuid())
+    email     String   @unique
+    username  String   @unique
+    name      String?
+    password  String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    refreshTokens        RefreshToken[]
+    endpoints            Endpoint[]
+    notificationChannels NotificationChannel[]
+}
+
+model RefreshToken {
+    id        String   @id @default(cuid())
+    token     String   @unique
+    userId    String
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    family    String
+    revoked   Boolean  @default(false)
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+
+    @@index([userId])
+    @@index([token])
+    @@index([family])
+}
+
+model Endpoint {
+    id               String   @id @default(cuid())
+    name             String
+    url              String
+    isActive         Boolean  @default(true)
+    isMuted          Boolean  @default(false)
+    checkIntervalSec Int
+    consecutiveFails Int      @default(0)
+    alertThreshold   Int      @default(3)
+    authType         AuthType @default(NONE)
+    authValue        String?
+    priority         Priority @default(LOW)
+    userId           String
+    user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    alerts      Alert[]
+    alertDigest AlertDigest[]
+
+    @@unique([userId, url])
+    @@index([userId])
+    @@index([isActive])
+}
+
+model Alert {
+    id         String      @id @default(cuid())
+    status     AlertStatus @default(TRIGGERED)
+    message    String?
+    endpointId String
+    endpoint   Endpoint    @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+    createdAt  DateTime    @default(now())
+    resolvedAt DateTime?
+
+    alertDigest AlertDigest[]
+
+    @@index([endpointId, status])
+}
+
+model AlertDigest {
+    id         String            @id @default(cuid())
+    userId     String
+    endpointId String
+    endpoint   Endpoint          @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+    alertId    String
+    alert      Alert             @relation(fields: [alertId], references: [id], onDelete: Cascade)
+    status     AlertDigestStatus @default(PENDING)
+    createdAt  DateTime          @default(now())
+    sentAt     DateTime?
+
+    @@index([status])
+    @@index([userId])
+}
+
+model NotificationChannel {
+    id        String                  @id @default(cuid())
+    type      NotificationChannelType @default(EMAIL)
+    target    String
+    isDefault Boolean                 @default(false)
+    userId    String
+    user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    createdAt DateTime                @default(now())
+
+    @@index([userId])
+}
+
+enum AuthType {
+    NONE
+    API_KEY
+    BASIC
+    BEARER
+}
+
+enum Priority {
+    LOW
+    MEDIUM
+    CRITICAL
+}
+
+enum AlertStatus {
+    TRIGGERED
+    RESOLVED
+}
+
+enum AlertDigestStatus {
+    PENDING
+    SENT
+}
+
+enum NotificationChannelType {
+    EMAIL
+    WEBHOOK
+}
