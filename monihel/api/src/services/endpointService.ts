@@ -8,6 +8,42 @@ import { encrypt } from '../utils/encryption'
 import { BadRequestError, ConflictError } from '../utils/errors'
 import { pingQueue } from '../queues/pingQueue'
 
+export const getEndpoints = async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.sub
+
+    // Try Redis cache first
+    const cacheKey = `user:${userId}:endpoints:list`
+    const cached = await redis.get(cacheKey)
+    if (cached) {
+        res.json({ success: true, endpoints: JSON.parse(cached) })
+        return
+    }
+
+    const endpoints = await prisma.endpoint.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+            id: true,
+            name: true,
+            url: true,
+            isActive: true,
+            isMuted: true,
+            checkIntervalSec: true,
+            alertThreshold: true,
+            consecutiveFails: true,
+            authType: true,
+            priority: true,
+            createdAt: true,
+            updatedAt: true,
+            // never expose authValue — encrypted secret
+        },
+    })
+
+    // Cache for 30 s — short TTL so mutations reflect quickly
+    await redis.setex(cacheKey, 30, JSON.stringify(endpoints))
+
+    res.json({ success: true, endpoints })
+}
 interface CreateEndpointBody {
     name: string
     url: string

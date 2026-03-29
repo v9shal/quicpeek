@@ -7,6 +7,19 @@ export interface PingJobData {
   priority: Priority
 }
 
+export interface MetricWriteJobData {
+  endpointId: string
+  status: 'UP' | 'DOWN' | 'TIMEOUT'
+  statusCode: number | null
+  responseTimeMs: number
+}
+export interface alert{
+    userId:string
+            endpointId:string,
+            alertId: string
+}
+
+
 const connection = {
   host: process.env.REDIS_HOST ?? 'localhost',
   port: parseInt(process.env.REDIS_PORT ?? '6379'),
@@ -18,4 +31,21 @@ export const pingQueue = new Queue<PingJobData>('ping', {
     removeOnComplete: { count: 10 },
     removeOnFail: { count: 50 },
   },
+})
+
+
+export const dbWriteQueue = new Queue<MetricWriteJobData>('metricWrite', {
+    connection,
+    defaultJobOptions: {
+        removeOnComplete: { count: 10 },
+        removeOnFail:     { count: 20 },
+        attempts: 10,
+        backoff: {
+            type:  'exponential',
+            delay: 2_000,   // 2s → 4s → 8s … up to ~34 min at attempt 10
+        },
+    },
+})
+export const alertQueue=new Queue<alert>('recovery',{
+    connection
 })

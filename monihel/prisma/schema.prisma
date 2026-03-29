@@ -62,7 +62,7 @@ model Endpoint {
 
 model Alert {
     id         String      @id @default(cuid())
-    status     AlertStatus @default(TRIGGERED)
+    status     AlertStatus @default(RESOLVED)
     message    String?
     endpointId String
     endpoint   Endpoint    @relation(fields: [endpointId], references: [id], onDelete: Cascade)

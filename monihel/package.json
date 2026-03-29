@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon --watch 'api/src/**/*.ts' --exec 'ts-node' api/src/index.ts",
+    "dev:worker:ping": "nodemon --watch 'workers/ping/**/*.ts' --exec 'ts-node' workers/ping/index.ts",
+    "dev:worker:db": "nodemon --watch 'workers/dbWrite/**/*.ts' --exec 'ts-node' workers/dbWrite/index.ts",
     "build": "tsc",
     "start": "node dist/api/src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -17,6 +19,7 @@
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "@types/pg": "^8.20.0",
+    "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.71.1",
     "cookie-parser": "^1.4.7",
@@ -27,6 +30,7 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^8.0.4",
     "pg": "^8.20.0",
     "prisma": "^6.19.2"
   },
@@ -38,6 +42,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/k6": "^1.7.0",
     "@types/node": "^25.5.0",
+    "@types/nodemailer": "^7.0.11",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
