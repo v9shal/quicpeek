@@ -9,6 +9,7 @@ import { env } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
 import authRouter from "./routes/auth";
 import endpointsRouter from "./routes/endpoints";
+import alertsRouter from "./routes/alerts";
 
 const app = express();
 app.use(helmet());
@@ -49,6 +50,7 @@ app.get("/", (_req, res) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/endpoints", endpointsRouter);
+app.use("/api/alerts", alertsRouter);
 
 
 app.use((_req, res) => {

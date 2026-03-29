@@ -4,7 +4,7 @@
   "description": "API and workers for endpoint monitoring and alerting system.",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --watch 'api/src/**/*.ts' --exec 'ts-node' api/src/index.ts",
+"dev": "ts-node-dev --respawn --transpile-only --exit-child api/src/index.ts",
     "dev:worker:ping": "nodemon --watch 'workers/ping/**/*.ts' --exec 'ts-node' workers/ping/index.ts",
     "dev:worker:db": "nodemon --watch 'workers/dbWrite/**/*.ts' --exec 'ts-node' workers/dbWrite/index.ts",
     "dev:worker:alert": "nodemon --watch 'workers/alert/**/*.ts' --exec 'ts-node' workers/alert/index.ts",
@@ -49,6 +49,7 @@
     "@types/nodemailer": "^7.0.11",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
   }
 }
