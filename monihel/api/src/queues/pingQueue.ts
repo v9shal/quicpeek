@@ -46,6 +46,12 @@ export const dbWriteQueue = new Queue<MetricWriteJobData>('metricWrite', {
         },
     },
 })
-export const alertQueue=new Queue<alert>('recovery',{
-    connection
+export const alertQueue = new Queue<alert>('recovery', {
+    connection,
+    defaultJobOptions: {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 3_000 },
+        removeOnComplete: { count: 50 },
+        removeOnFail:     { count: 50 },
+    },
 })
