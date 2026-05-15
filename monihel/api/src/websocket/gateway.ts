@@ -4,24 +4,28 @@ import { Server as HttpServer } from 'http'
 import { verifyAccessToken } from '../services/authService'
 import { redis, redisSubscriber, adapterSubscriber } from '../lib/redis'
 import { createAdapter } from '@socket.io/redis-adapter'
+import { env } from '../config/env'
 
 export function initWebSocket(httpServer: HttpServer) {
     const io = new Server(httpServer, {
-        cors: { origin: process.env.CLIENT_URL, credentials: true }
+        cors: { origin: env.CLIENT_URL, credentials: true }
     })
 
     // Use dedicated pub + sub connections for the adapter — never reuse redisSubscriber
     io.adapter(createAdapter(redis, adapterSubscriber))
 
     // Auth middleware
-    io.use((socket, next) => {
-        const token = socket.handshake.auth.token
-        if (!token) return next(new Error('Unauthorized'))  // bug fix: was `if(token)`
+  io.use((socket, next) => {
+    const token = socket.handshake.auth.token
+    if (!token) return next(new Error('Unauthorized'))
+    try {
         const payload = verifyAccessToken(token)
-        if (!payload) return next(new Error('Unauthorized'))
         socket.data.userId = payload.sub
         next()
-    })
+    } catch {
+        next(new Error('Unauthorized'))
+    }
+})
 
     io.on('connection', (socket) => {
         const userId = socket.data.userId

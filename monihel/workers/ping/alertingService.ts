@@ -1,1 +1,0 @@
-// Consecutive fail logic

@@ -1,7 +1,7 @@
 // Recovery email sending
 import nodemailer from 'nodemailer'
 import prisma from '../../api/src/lib/prisma'
-import redis from '../../api/src/services/redis'
+import {redis} from '../../api/src/lib/redis'
 import type { Endpoint } from '@prisma/client'
 
 const transporter = nodemailer.createTransport({
@@ -84,7 +84,7 @@ export async function sendRecoveryEmail(input: RecoveryEmailInput): Promise<void
     `
 
     await transporter.sendMail({
-        from:    process.env.SMTP_FROM ?? 'alerts@monihel.dev',
+        from:    process.env.SMTP_FROM ?? 'alerts@monihel.local',
         to:      toEmail,
         subject: `[Monihel] ${endpoint.name} is back UP`,
         text,

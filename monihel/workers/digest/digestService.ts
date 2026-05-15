@@ -149,7 +149,7 @@ async function sendDigestEmail(to: string, rows: DigestRow[]): Promise<void> {
     `
 
     await transporter.sendMail({
-        from:    process.env.SMTP_FROM ?? 'alerts@monihel.dev',
+        from:    process.env.SMTP_FROM ?? 'alerts@monihel.local',
         to,
         subject: `[Monihel] ${rows.length} endpoint(s) need your attention`,
         text,

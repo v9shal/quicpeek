@@ -1,0 +1,129 @@
+# ─── Monihel – Docker Compose ────────────────────────────────────────────────
+# One-command local setup:  docker compose up --build
+# Runs Postgres, Redis, API server and all four workers.
+# On first run, apply migrations:
+#   docker compose exec api npx prisma migrate deploy
+#   docker compose exec api npx ts-node scripts/seed.ts   (optional demo data)
+
+services:
+  # ─── Infrastructure ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: monihel
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── API Server ──────────────────────────────────────────────────────────────
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4000}:4000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/monihel?schema=public
+      REDIS_HOST: redis
+      CACHE_REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["node", "dist/api/src/index.js"]
+
+  # ─── Workers ─────────────────────────────────────────────────────────────────
+  worker-ping:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PING_WORKER_PORT:-4101}:4101"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/monihel?schema=public
+      REDIS_HOST: redis
+      CACHE_REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["node", "dist/workers/ping/index.js"]
+
+  worker-dbwrite:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${DBWRITE_WORKER_PORT:-4102}:4102"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/monihel?schema=public
+      REDIS_HOST: redis
+      CACHE_REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["node", "dist/workers/dbWrite/index.js"]
+
+  worker-alert:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${ALERT_WORKER_PORT:-4103}:4103"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/monihel?schema=public
+      REDIS_HOST: redis
+      CACHE_REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["node", "dist/workers/alert/index.js"]
+
+  worker-digest:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${DIGEST_WORKER_PORT:-4104}:4104"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/monihel?schema=public
+      REDIS_HOST: redis
+      CACHE_REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["node", "dist/workers/digest/index.js"]
+
+volumes:
+  pgdata:
+  redisdata:

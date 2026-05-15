@@ -1,54 +1,82 @@
 import http from 'http'
 import app from './app'
+import { env } from './config/env'
 import { initWebSocket } from './websocket/gateway'
 import { disconnectRedis } from './lib/redis'
+import { logger } from './lib/logger'
 import prisma from './lib/prisma'
-import { pingQueue } from './queues/pingQueue'
+import {
+    allPingQueues,
+    schedulePingJob,
+    dbWriteQueue,
+    alertQueue,
+    deadLetterQueue,
+    startDeadLetterForwarder,
+} from './queues/pingQueue'
 
 const httpServer = http.createServer(app)
 initWebSocket(httpServer)
 
+const stopDLQ = startDeadLetterForwarder()
+
 // ─── Recreate missing BullMQ repeat jobs on startup ───────────────────────────
 async function recreateMissingJobs(): Promise<void> {
-    const [activeEndpoints, existingJobs] = await Promise.all([
-        prisma.endpoint.findMany({
-            where: { isActive: true },
-            select: { id: true, userId: true, priority: true, checkIntervalSec: true },
-        }),
-        pingQueue.getRepeatableJobs(),
-    ])
+    const activeEndpoints = await prisma.endpoint.findMany({
+        where: { isActive: true },
+        select: { id: true, userId: true, priority: true, checkIntervalSec: true },
+    })
 
-    const scheduledIds = new Set(existingJobs.map(j => j.id))
-    let recreated = 0
-
-    for (const ep of activeEndpoints) {
-        const jobId = `endpoint:${ep.id}`
-        if (!scheduledIds.has(jobId)) {
-            await pingQueue.add(
-                'ping',
-                { endpointId: ep.id, userId: ep.userId, priority: ep.priority },
-                { repeat: { every: ep.checkIntervalSec * 1000 }, jobId }
-            )
-            recreated++
-        }
+    // Build a set of every endpoint already scheduled in any lane.
+    const scheduled = new Set<string>()
+    for (const q of allPingQueues) {
+        const jobs = await q.getRepeatableJobs()
+        for (const j of jobs) if (j.id) scheduled.add(j.id)
     }
 
-    console.log(`[startup] ${activeEndpoints.length} active endpoints — recreated ${recreated} missing BullMQ jobs`)
+    let recreated = 0
+    for (const ep of activeEndpoints) {
+        if (scheduled.has(`endpoint:${ep.id}`)) continue
+        await schedulePingJob({
+            endpointId: ep.id,
+            userId: ep.userId,
+            priority: ep.priority,
+            checkIntervalSec: ep.checkIntervalSec,
+        })
+        recreated++
+    }
+
+    logger.info({ activeEndpoints: activeEndpoints.length, recreated }, 'startup repeat-job sync done')
 }
 
-httpServer.listen(4000, async () => {
-    console.log('Server running on port 4000')
-    await recreateMissingJobs()
+httpServer.listen(env.PORT, async () => {
+    logger.info({ port: env.PORT, env: env.NODE_ENV }, 'server listening')
+    try {
+        await recreateMissingJobs()
+    } catch (err: any) {
+        logger.error({ err: err?.message ?? err }, 'failed to recreate repeat jobs')
+    }
 })
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
 const shutdown = async (signal: string) => {
-    console.log(`\n[${signal}] Shutting down...`)
+    logger.info({ signal }, 'shutting down')
     httpServer.close(async () => {
-        await disconnectRedis()
+        try {
+            await stopDLQ()
+            await Promise.allSettled([
+                ...allPingQueues.map(q => q.close()),
+                dbWriteQueue.close(),
+                alertQueue.close(),
+                deadLetterQueue.close(),
+            ])
+            await disconnectRedis()
+            await prisma.$disconnect()
+        } catch (err) {
+            logger.error({ err }, 'cleanup error')
+        }
         process.exit(0)
     })
-    setTimeout(() => process.exit(1), 3000)
+    setTimeout(() => process.exit(1), 5000)
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'))

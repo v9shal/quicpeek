@@ -2,20 +2,14 @@
 import { Request, Response } from 'express'
 import { AuthType, Priority } from '@prisma/client'
 import prisma from '../lib/prisma'
-import redis from './redis'
+import {redis} from '../lib/redis'
 import { isSafeUrl } from '../utils/ssrf'
 import { encrypt } from '../utils/encryption'
 import { BadRequestError, ConflictError, NotFoundError, ForbiddenError } from '../utils/errors'
-import { pingQueue } from '../queues/pingQueue'
+import { schedulePingJob, removePingRepeatJob } from '../queues/pingQueue'
+import { Prisma } from '@prisma/client'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
-/** Remove the BullMQ repeatable ping job for an endpoint (noop if not found). */
-async function removeRepeatJob(endpointId: string): Promise<void> {
-    const jobs = await pingQueue.getRepeatableJobs()
-    const job = jobs.find(j => j.id === `endpoint:${endpointId}`)
-    if (job) await pingQueue.removeRepeatableByKey(job.key)
-}
 
 /** Fetch an endpoint and verify it belongs to userId. */
 async function findOwnedEndpoint(endpointId: string, userId: string) {
@@ -90,7 +84,7 @@ export const createEndpoint = async (req: Request, res: Response): Promise<void>
         throw new BadRequestError('name, url, and checkIntervalSec are required')
     }
 
-    if (!isSafeUrl(url)) {
+    if (!(await isSafeUrl(url))) {
         throw new BadRequestError('Invalid URL or private/internal addresses are not allowed')
     }
 
@@ -128,23 +122,17 @@ export const createEndpoint = async (req: Request, res: Response): Promise<void>
     }
 
     const pipeline = redis.pipeline()
-    pipeline.sadd(`user:${userId}:endpoints`, endpoint.id)
+    pipeline.del(`user:${userId}:endpoints:list`)
     pipeline.setex(`endpoint:config:${endpoint.id}`, 300, JSON.stringify(endpoint))
 
     await Promise.all([
         pipeline.exec(),
-        pingQueue.add(
-            'ping',
-            {
-                endpointId: endpoint.id,
-                userId,
-                priority: endpoint.priority,
-            },
-            {
-                repeat: { every: endpoint.checkIntervalSec * 1000 },
-                jobId: `endpoint:${endpoint.id}`,
-            }
-        ),
+        schedulePingJob({
+            endpointId: endpoint.id,
+            userId,
+            priority: endpoint.priority,
+            checkIntervalSec: endpoint.checkIntervalSec,
+        }),
     ])
 
     res.status(201).json({ success: true, endpoint })
@@ -199,7 +187,7 @@ export const updateEndpoint = async (req: Request, res: Response): Promise<void>
 
     const existing = await findOwnedEndpoint(id, userId)
 
-    if (body.url && !isSafeUrl(body.url)) {
+    if (body.url && !(await isSafeUrl(body.url))) {
         throw new BadRequestError('Invalid URL or private/internal addresses are not allowed')
     }
     if (body.checkIntervalSec !== undefined && (typeof body.checkIntervalSec !== 'number' || body.checkIntervalSec < 60)) {
@@ -230,14 +218,16 @@ export const updateEndpoint = async (req: Request, res: Response): Promise<void>
         },
     })
 
-    // Reschedule BullMQ job if interval changed and endpoint is active
-    if (body.checkIntervalSec !== undefined && body.checkIntervalSec !== existing.checkIntervalSec && updated.isActive) {
-        await removeRepeatJob(id)
-        await pingQueue.add(
-            'ping',
-            { endpointId: id, userId, priority: updated.priority },
-            { repeat: { every: updated.checkIntervalSec * 1000 }, jobId: `endpoint:${id}` }
-        )
+    // Reschedule when interval OR priority changed (priority change moves it between lanes).
+    const intervalChanged = body.checkIntervalSec !== undefined && body.checkIntervalSec !== existing.checkIntervalSec
+    const priorityChanged = body.priority !== undefined && body.priority !== existing.priority
+    if (updated.isActive && (intervalChanged || priorityChanged)) {
+        await schedulePingJob({
+            endpointId: id,
+            userId,
+            priority: updated.priority,
+            checkIntervalSec: updated.checkIntervalSec,
+        })
     }
 
     const pipeline = redis.pipeline()
@@ -257,7 +247,7 @@ export const deleteEndpoint = async (req: Request, res: Response): Promise<void>
     await findOwnedEndpoint(id, userId)
 
     await Promise.all([
-        removeRepeatJob(id),
+        removePingRepeatJob(id),
         prisma.endpoint.delete({ where: { id } }),
     ])
 
@@ -285,7 +275,7 @@ export const pauseEndpoint = async (req: Request, res: Response): Promise<void> 
 
     await Promise.all([
         prisma.endpoint.update({ where: { id }, data: { isActive: false } }),
-        removeRepeatJob(id),
+        removePingRepeatJob(id),
     ])
 
     const pipeline = redis.pipeline()
@@ -309,11 +299,12 @@ export const resumeEndpoint = async (req: Request, res: Response): Promise<void>
 
     const updated = await prisma.endpoint.update({ where: { id }, data: { isActive: true } })
 
-    await pingQueue.add(
-        'ping',
-        { endpointId: id, userId, priority: updated.priority },
-        { repeat: { every: updated.checkIntervalSec * 1000 }, jobId: `endpoint:${id}` }
-    )
+    await schedulePingJob({
+        endpointId: id,
+        userId,
+        priority: updated.priority,
+        checkIntervalSec: updated.checkIntervalSec,
+    })
 
     const pipeline = redis.pipeline()
     pipeline.del(`endpoint:config:${id}`)
@@ -334,15 +325,15 @@ export const getEndpointMetrics = async (req: Request, res: Response): Promise<v
 
     type MetricRow = { timestamp: Date; status: string; response_time_ms: number; status_code: number | null }
 
-    const metrics = await prisma.$queryRawUnsafe<MetricRow[]>(
-        `SELECT timestamp, status, response_time_ms, status_code
-         FROM endpoint_metrics
-         WHERE endpoint_id = $1
-           AND timestamp >= NOW() - ($2 || ' hours')::INTERVAL
-         ORDER BY timestamp ASC`,
-        id,
-        hours.toString()
-    )
+    const metrics = await prisma.$queryRaw<MetricRow[]>(
+    Prisma.sql`
+        SELECT timestamp, status, response_time_ms, status_code
+        FROM endpoint_metrics
+        WHERE endpoint_id = ${id}
+          AND timestamp >= NOW() - make_interval(hours => ${hours})
+        ORDER BY timestamp ASC
+    `
+)
 
     res.json({ success: true, metrics, hours })
 }

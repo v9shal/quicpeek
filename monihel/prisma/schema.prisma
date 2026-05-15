@@ -54,10 +54,24 @@ model Endpoint {
 
     alerts      Alert[]
     alertDigest AlertDigest[]
+    metrics     EndpointMetric[]
 
     @@unique([userId, url])
     @@index([userId])
     @@index([isActive])
+}
+
+model EndpointMetric {
+    endpointId     String       @map("endpoint_id")
+    endpoint       Endpoint     @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+    timestamp      DateTime
+    status         MetricStatus
+    responseTimeMs Int          @map("response_time_ms")
+    statusCode     Int?         @map("status_code")
+
+    @@id([endpointId, timestamp])
+    @@index([endpointId, timestamp(sort: Desc)])
+    @@map("endpoint_metrics")
 }
 
 model Alert {
@@ -127,4 +141,10 @@ enum AlertDigestStatus {
 enum NotificationChannelType {
     EMAIL
     WEBHOOK
+}
+
+enum MetricStatus {
+    UP
+    DOWN
+    TIMEOUT
 }
