@@ -1,0 +1,287 @@
+{
+  "info": {
+    "name": "Monihel – Uptime Monitor",
+    "description": "Self-hosted uptime monitoring API.\n\nSetup:\n1. Set `baseUrl` variable to your server (default: http://localhost:4000)\n2. Register + verify email\n3. Login – accessToken auto-saved\n4. Add endpoints to monitor",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000" },
+    { "key": "accessToken", "value": "" },
+    { "key": "endpointId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": { "exec": [""], "type": "text/javascript" }
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"you@example.com\",\n  \"username\": \"myuser\",\n  \"password\": \"StrongPass123!\",\n  \"name\": \"Your Name\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  var json = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-email?token=PASTE_TOKEN_FROM_EMAIL",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-email"],
+              "query": [{ "key": "token", "value": "PASTE_TOKEN_FROM_EMAIL" }]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"you@example.com\",\n  \"password\": \"StrongPass123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"paste-refresh-token-here\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] }
+          }
+        },
+        {
+          "name": "Logout All Devices",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/auth/logout-all", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout-all"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Endpoints",
+      "item": [
+        {
+          "name": "Create Endpoint",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Production API\",\n  \"url\": \"https://myapp.com/health\",\n  \"checkIntervalSec\": 60,\n  \"alertThreshold\": 3,\n  \"priority\": \"HIGH\",\n  \"isMuted\": false\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/endpoints", "host": ["{{baseUrl}}"], "path": ["api", "endpoints"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  var json = pm.response.json();",
+                  "  pm.collectionVariables.set('endpointId', json.endpoint.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Endpoints",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/endpoints", "host": ["{{baseUrl}}"], "path": ["api", "endpoints"] }
+          }
+        },
+        {
+          "name": "Get Endpoint",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/endpoints/{{endpointId}}", "host": ["{{baseUrl}}"], "path": ["api", "endpoints", "{{endpointId}}"] }
+          }
+        },
+        {
+          "name": "Update Endpoint",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"checkIntervalSec\": 120,\n  \"alertThreshold\": 5\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/endpoints/{{endpointId}}", "host": ["{{baseUrl}}"], "path": ["api", "endpoints", "{{endpointId}}"] }
+          }
+        },
+        {
+          "name": "Pause Endpoint",
+          "request": {
+            "method": "PATCH",
+            "url": { "raw": "{{baseUrl}}/api/endpoints/{{endpointId}}/pause", "host": ["{{baseUrl}}"], "path": ["api", "endpoints", "{{endpointId}}", "pause"] }
+          }
+        },
+        {
+          "name": "Resume Endpoint",
+          "request": {
+            "method": "PATCH",
+            "url": { "raw": "{{baseUrl}}/api/endpoints/{{endpointId}}/resume", "host": ["{{baseUrl}}"], "path": ["api", "endpoints", "{{endpointId}}", "resume"] }
+          }
+        },
+        {
+          "name": "Get Endpoint Metrics",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/endpoints/{{endpointId}}/metrics", "host": ["{{baseUrl}}"], "path": ["api", "endpoints", "{{endpointId}}", "metrics"] }
+          }
+        },
+        {
+          "name": "Delete Endpoint",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/endpoints/{{endpointId}}", "host": ["{{baseUrl}}"], "path": ["api", "endpoints", "{{endpointId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "item": [
+        {
+          "name": "List Alerts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/alerts?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "alerts"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "TRIGGERED", "disabled": true }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "License",
+      "item": [
+        {
+          "name": "Validate License",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"MNHL-XXXXXXXX-XXXXXXXX-XXXXXXXX\",\n  \"instanceId\": \"my-server-hostname\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/licenses/validate", "host": ["{{baseUrl}}"], "path": ["v1", "licenses", "validate"] }
+          }
+        },
+        {
+          "name": "Deactivate License",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"MNHL-XXXXXXXX-XXXXXXXX-XXXXXXXX\",\n  \"instanceId\": \"my-server-hostname\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/v1/licenses/deactivate", "host": ["{{baseUrl}}"], "path": ["v1", "licenses", "deactivate"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          }
+        }
+      ]
+    }
+  ]
+}
