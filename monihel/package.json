@@ -13,7 +13,7 @@
     "start": "node dist/api/src/index.js",
     "start:workers": "node dist/workers/ping/index.js & node dist/workers/dbWrite/index.js & node dist/workers/alert/index.js & node dist/workers/digest/index.js",
     "seed": "ts-node scripts/seed.ts",
-    "db:migrate": "npx prisma migrate deploy",
+    "db:migrate": "npx prisma migrate deploy --schema=prisma/schema.prisma",
     "db:generate": "npx prisma generate",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
