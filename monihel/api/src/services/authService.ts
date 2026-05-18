@@ -2,11 +2,14 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import type { StringValue } from "ms";
 import crypto from "crypto";
+import nodemailer from "nodemailer";
 import prisma from "../lib/prisma";
 import { env } from "../config/env";
+import { logger } from "../lib/logger";
 import {
   BadRequestError,
   ConflictError,
+  ForbiddenError,
   UnauthorizedError,
 } from "../utils/errors";
 import {
@@ -14,6 +17,46 @@ import {
   validatePassword,
   validateUsername,
 } from "../utils/validation";
+
+// ─── Email transporter (shared with alert worker config) ─────────────
+
+const transporter = nodemailer.createTransport({
+  host: env.SMTP_HOST,
+  port: env.SMTP_PORT,
+  secure: env.SMTP_SECURE,
+  auth: {
+    user: env.SMTP_USER,
+    pass: env.SMTP_PASS,
+  },
+});
+
+function generateVerificationToken(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+async function sendVerificationEmail(
+  email: string,
+  token: string
+): Promise<void> {
+  const verifyUrl = `${env.CLIENT_URL}/verify-email?token=${token}`;
+  try {
+    await transporter.sendMail({
+      from: env.SMTP_FROM,
+      to: email,
+      subject: "Verify your email — Monihel",
+      html: [
+        "<h2>Welcome to Monihel!</h2>",
+        "<p>Please verify your email address by clicking the link below:</p>",
+        `<p><a href="${verifyUrl}">${verifyUrl}</a></p>`,
+        "<p>This link expires when you register a new verification token.</p>",
+        "<p>If you did not create an account, you can ignore this email.</p>",
+      ].join("\n"),
+    });
+    logger.info({ email }, "verification email sent");
+  } catch (err: any) {
+    logger.error({ err: err?.message, email }, "failed to send verification email");
+  }
+}
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -98,7 +141,7 @@ function parseExpiry(expiry: string): number {
  * Register a new user.
  */
 export async function register(input: RegisterInput): Promise<{
-  user: { id: string; email: string; username: string; name: string | null };
+  user: { id: string; email: string; username: string; name: string | null; emailVerified: boolean };
   tokens: TokenPair;
 }> {
   // Validate
@@ -137,17 +180,24 @@ export async function register(input: RegisterInput): Promise<{
     env.BCRYPT_SALT_ROUNDS
   );
 
-  // Create user
+  const verificationToken = generateVerificationToken();
+
+  // Create user (unverified)
   const user = await prisma.user.create({
     data: {
       email: input.email.toLowerCase(),
       username: input.username.toLowerCase(),
       name: input.name || null,
       password: hashedPassword,
+      emailVerified: false,
+      verificationToken,
     },
   });
 
-  // Issue tokens
+  // Send verification email (fire-and-forget — don't block registration)
+  sendVerificationEmail(user.email, verificationToken);
+
+  // Issue tokens (user can browse but can't create endpoints until verified)
   const tokens = await issueTokenPair(user);
 
   return {
@@ -156,6 +206,7 @@ export async function register(input: RegisterInput): Promise<{
       email: user.email,
       username: user.username,
       name: user.name,
+      emailVerified: user.emailVerified,
     },
     tokens,
   };
@@ -165,7 +216,7 @@ export async function register(input: RegisterInput): Promise<{
  * Login with email/username + password.
  */
 export async function login(input: LoginInput): Promise<{
-  user: { id: string; email: string; username: string; name: string | null };
+  user: { id: string; email: string; username: string; name: string | null; emailVerified: boolean };
   tokens: TokenPair;
 }> {
   const loginLower = input.login.toLowerCase();
@@ -185,6 +236,12 @@ export async function login(input: LoginInput): Promise<{
     throw new UnauthorizedError("Invalid credentials");
   }
 
+  if (!user.emailVerified) {
+    throw new ForbiddenError(
+      "Email not verified. Please check your inbox or request a new verification email."
+    );
+  }
+
   const tokens = await issueTokenPair(user);
 
   return {
@@ -193,6 +250,7 @@ export async function login(input: LoginInput): Promise<{
       email: user.email,
       username: user.username,
       name: user.name,
+      emailVerified: user.emailVerified,
     },
     tokens,
   };
@@ -305,12 +363,63 @@ export async function getMe(userId: string) {
       email: true,
       username: true,
       name: true,
+      emailVerified: true,
       createdAt: true,
       updatedAt: true,
     },
   });
   if (!user) throw new UnauthorizedError("User not found");
   return user;
+}
+
+/**
+ * Verify a user's email with their verification token.
+ */
+export async function verifyEmail(token: string): Promise<void> {
+  if (!token) throw new BadRequestError("Verification token is required");
+
+  const user = await prisma.user.findUnique({
+    where: { verificationToken: token },
+  });
+
+  if (!user) {
+    throw new BadRequestError("Invalid or expired verification token");
+  }
+
+  if (user.emailVerified) {
+    return; // already verified — idempotent
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerified: true,
+      verificationToken: null, // consume the token
+    },
+  });
+}
+
+/**
+ * Resend verification email (generates a new token).
+ */
+export async function resendVerification(email: string): Promise<void> {
+  if (!email) throw new BadRequestError("Email is required");
+
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+  });
+
+  // Always return success to prevent email enumeration.
+  if (!user || user.emailVerified) return;
+
+  const newToken = generateVerificationToken();
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { verificationToken: newToken },
+  });
+
+  await sendVerificationEmail(user.email, newToken);
 }
 
 // ─── Internal ────────────────────────────────────────────────────────

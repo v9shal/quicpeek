@@ -6,6 +6,8 @@ import {
   logout,
   logoutAll,
   getMe,
+  verifyEmail,
+  resendVerification,
 } from "../services/authService";
 import { authenticate } from "../middleware/auth";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -168,6 +170,48 @@ router.get(
     res.status(200).json({
       success: true,
       data: { user },
+    });
+  })
+);
+
+// ─── POST /api/auth/verify-email ─────────────────────────────────────
+
+router.post(
+  "/verify-email",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { token } = req.body;
+
+    if (!token) {
+      throw new BadRequestError("token is required");
+    }
+
+    await verifyEmail(token);
+
+    res.status(200).json({
+      success: true,
+      message: "Email verified successfully. You can now log in.",
+    });
+  })
+);
+
+// ─── POST /api/auth/resend-verification ──────────────────────────────
+
+router.post(
+  "/resend-verification",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    if (!email) {
+      throw new BadRequestError("email is required");
+    }
+
+    await resendVerification(email);
+
+    // Always 200 to prevent email enumeration
+    res.status(200).json({
+      success: true,
+      message:
+        "If an unverified account with that email exists, a verification email has been sent.",
     });
   })
 );
