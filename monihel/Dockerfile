@@ -6,7 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # Copy source + prisma schema
-COPY tsconfig.json prisma.config.ts ./
+COPY tsconfig.json ./
 COPY prisma/ prisma/
 COPY api/ api/
 COPY workers/ workers/
