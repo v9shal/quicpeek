@@ -48,7 +48,7 @@ async function recreateMissingJobs(): Promise<void> {
     logger.info({ activeEndpoints: activeEndpoints.length, recreated }, 'startup repeat-job sync done')
 }
 
-httpServer.listen(env.PORT, async () => {
+httpServer.listen(env.PORT, '0.0.0.0', async () => {
     logger.info({ port: env.PORT, env: env.NODE_ENV }, 'server listening')
     try {
         await recreateMissingJobs()
