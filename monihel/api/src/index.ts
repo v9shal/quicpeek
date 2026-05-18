@@ -1,4 +1,6 @@
 import http from 'http'
+import crypto from 'crypto'
+import os from 'os'
 import app from './app'
 import { env } from './config/env'
 import { initWebSocket } from './websocket/gateway'
@@ -13,6 +15,46 @@ import {
     deadLetterQueue,
     startDeadLetterForwarder,
 } from './queues/pingQueue'
+
+// ─── License validation ───────────────────────────────────────────────────────
+async function validateLicense(): Promise<void> {
+    const key = process.env.LICENSE_KEY
+    if (!key) {
+        console.error('\n❌  LICENSE_KEY is not set.')
+        console.error('    Purchase Monihel at https://monihel.in to get a key.')
+        console.error('    Then add LICENSE_KEY=MNHL-XXXX-XXXX-XXXX to your .env\n')
+        process.exit(1)
+    }
+
+    // Stable instance ID: hash of hostname + DATABASE_URL
+    const instanceId = crypto
+        .createHash('sha256')
+        .update(os.hostname() + (process.env.DATABASE_URL || ''))
+        .digest('hex')
+        .slice(0, 32)
+
+    const validateUrl = process.env.LICENSE_VALIDATE_URL ||
+        'https://quicpeek-production.up.railway.app/v1/licenses/validate'
+
+    try {
+        const res = await fetch(validateUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key, instanceId }),
+            signal: AbortSignal.timeout(10_000),
+        })
+        const data = await res.json() as { valid: boolean; error?: string }
+        if (!data.valid) {
+            console.error(`\n❌  License invalid: ${data.error}`)
+            console.error('    Purchase a new key at https://monihel.in\n')
+            process.exit(1)
+        }
+        logger.info({ instanceId }, 'license validated ✅')
+    } catch (err: any) {
+        // Grace: if validation server unreachable, warn but don't block
+        logger.warn({ err: err?.message }, 'license server unreachable — continuing')
+    }
+}
 
 const httpServer = http.createServer(app)
 initWebSocket(httpServer)
@@ -51,6 +93,7 @@ async function recreateMissingJobs(): Promise<void> {
 httpServer.listen(env.PORT, '0.0.0.0', async () => {
     logger.info({ port: env.PORT, env: env.NODE_ENV }, 'server listening')
     try {
+        await validateLicense()
         await recreateMissingJobs()
     } catch (err: any) {
         logger.error({ err: err?.message ?? err }, 'failed to recreate repeat jobs')
