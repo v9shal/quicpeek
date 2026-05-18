@@ -18,6 +18,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import authRouter from "./routes/auth";
 import endpointsRouter from "./routes/endpoints";
 import alertsRouter from "./routes/alerts";
+import licensesRouter from "./routes/licenses";
 
 const app = express();
 
@@ -109,6 +110,7 @@ app.get("/metrics", async (_req, res, next) => {
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/endpoints", endpointsRouter);
 app.use("/api/alerts", alertsRouter);
+app.use("/v1/licenses", licensesRouter);
 
 
 app.use((_req, res) => {

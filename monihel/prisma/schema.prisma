@@ -7,13 +7,15 @@ datasource db {
 }
 
 model User {
-    id        String   @id @default(cuid())
-    email     String   @unique
-    username  String   @unique
-    name      String?
-    password  String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    id                String   @id @default(cuid())
+    email             String   @unique
+    username          String   @unique
+    name              String?
+    password          String
+    emailVerified     Boolean  @default(false)
+    verificationToken String?  @unique
+    createdAt         DateTime @default(now())
+    updatedAt         DateTime @updatedAt
 
     refreshTokens        RefreshToken[]
     endpoints            Endpoint[]
@@ -76,7 +78,7 @@ model EndpointMetric {
 
 model Alert {
     id         String      @id @default(cuid())
-    status     AlertStatus @default(RESOLVED)
+    status     AlertStatus @default(TRIGGERED)
     message    String?
     endpointId String
     endpoint   Endpoint    @relation(fields: [endpointId], references: [id], onDelete: Cascade)
@@ -147,4 +149,16 @@ enum MetricStatus {
     UP
     DOWN
     TIMEOUT
+}
+
+model LicenseKey {
+    id          String    @id @default(cuid())
+    key         String    @unique
+    buyerEmail  String
+    isActive    Boolean   @default(true)
+    activatedAt DateTime?
+    instanceId  String?
+    createdAt   DateTime  @default(now())
+
+    @@index([buyerEmail])
 }
