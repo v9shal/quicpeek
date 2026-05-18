@@ -6,12 +6,13 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # Copy source + prisma schema
-COPY tsconfig.json ./
+COPY tsconfig.json prisma.config.ts ./
 COPY prisma/ prisma/
 COPY api/ api/
 COPY workers/ workers/
 
 # Generate Prisma client + compile TypeScript
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 RUN npx prisma generate
 RUN npx tsc
 
