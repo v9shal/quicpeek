@@ -77,6 +77,9 @@ export const env = {
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
   SMTP_FROM: process.env.SMTP_FROM || "alerts@monihel.local",
+
+  // Gumroad webhook verification
+  GUMROAD_SELLER_ID: process.env.GUMROAD_SELLER_ID || "",
 } as const;
 
 // Validate required vars at startup

@@ -155,6 +155,8 @@ model LicenseKey {
     id          String    @id @default(cuid())
     key         String    @unique
     buyerEmail  String
+    saleId      String?   @unique
+    productId   String?
     isActive    Boolean   @default(true)
     activatedAt DateTime?
     instanceId  String?
