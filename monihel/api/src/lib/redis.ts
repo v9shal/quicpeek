@@ -19,6 +19,7 @@ const cacheConfig = {
     host: env.CACHE_REDIS_HOST,
     port: env.CACHE_REDIS_PORT,
     db: env.CACHE_REDIS_DB,
+    password: env.REDIS_PASSWORD,
     maxRetriesPerRequest: null as null,
 }
 
@@ -26,6 +27,7 @@ const queueRedisConfig = {
     host: env.REDIS_HOST,
     port: env.REDIS_PORT,
     db: env.QUEUE_REDIS_DB,
+    password: env.REDIS_PASSWORD,
     maxRetriesPerRequest: null as null,
 }
 

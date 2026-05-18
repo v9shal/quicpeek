@@ -35,6 +35,7 @@ export const env = {
   // For production, point CACHE_REDIS_HOST/PORT to a different instance.
   REDIS_HOST: process.env.REDIS_HOST || "127.0.0.1",
   REDIS_PORT: int("REDIS_PORT", 6379),
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD || undefined,
   QUEUE_REDIS_DB: int("QUEUE_REDIS_DB", 0),
   CACHE_REDIS_HOST: process.env.CACHE_REDIS_HOST || process.env.REDIS_HOST || "127.0.0.1",
   CACHE_REDIS_PORT: int("CACHE_REDIS_PORT", int("REDIS_PORT", 6379)),
