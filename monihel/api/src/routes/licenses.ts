@@ -179,16 +179,12 @@ router.post(
             },
         })
 
-        // Email the key to buyer
-        try {
-            await emailLicenseKey(email, key)
-            logger.info({ email, sale_id, key }, 'gumroad webhook: license generated and emailed')
-        } catch (err: any) {
-            // Key is saved even if email fails — you can resend manually
-            logger.error({ err: err?.message, email, key }, 'gumroad webhook: email send failed')
-        }
-
+        // Respond immediately so Gumroad doesn't time out, then email in background
         res.json({ success: true })
+
+        emailLicenseKey(email, key)
+            .then(() => logger.info({ email, sale_id, key }, 'gumroad webhook: license generated and emailed'))
+            .catch((err: any) => logger.error({ err: err?.message, email, key }, 'gumroad webhook: email send failed'))
     })
 )
 
